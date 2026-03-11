@@ -59,6 +59,7 @@ const genRecords = (emps) => {
       for (let i = 0; i < days; i++)
         r.push({ id:`${emp["Employee #"]}-${m}-${i}`, employeeId:emp["Employee #"], team:emp.Teams,
           date: new Date(d.getFullYear(), d.getMonth(), i*3+2).toISOString().slice(0,10),
+          submittedAt: new Date(d.getFullYear(), d.getMonth(), i*3+1, 9+i, 30).toISOString(),
           half: null, status:["approved","approved","approved","pending","rejected"][Math.floor(Math.random()*5)], reason:"WFH request" });
     }
   });
@@ -75,13 +76,7 @@ const RoleTag = ({ role }) => {
   return <span style={{background:cfg.bg,color:cfg.color,fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:2,letterSpacing:"0.08em",textTransform:"uppercase"}}>{role}</span>;
 };
 const Btn = ({ children, onClick, variant="primary", small=false, full=false, active=false }) => {
-  const s = {
-    primary:{background:C.white,color:C.black,border:"none"},
-    ghost:{background:active?C.g07:"transparent",color:active?C.white:C.g03,border:`1px solid ${active?C.g05:C.g07}`},
-    danger:{background:"transparent",color:C.red,border:`1px solid ${C.red}`},
-    success:{background:"transparent",color:"#4ade80",border:"1px solid #4ade80"},
-    yellow:{background:C.yellow,color:C.black,border:"none"},
-  }[variant];
+  const s = { primary:{background:C.white,color:C.black,border:"none"}, ghost:{background:active?C.g07:"transparent",color:active?C.white:C.g03,border:`1px solid ${active?C.g05:C.g07}`}, danger:{background:"transparent",color:C.red,border:`1px solid ${C.red}`}, success:{background:"transparent",color:"#4ade80",border:"1px solid #4ade80"}, yellow:{background:C.yellow,color:C.black,border:"none"} }[variant];
   return <button onClick={onClick} style={{...s,fontFamily:"inherit",fontWeight:600,fontSize:small?11:13,padding:small?"4px 12px":"9px 20px",cursor:"pointer",borderRadius:2,letterSpacing:"0.03em",width:full?"100%":"auto",transition:"opacity .15s",whiteSpace:"nowrap"}} onMouseEnter={e=>e.currentTarget.style.opacity=".75"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{children}</button>;
 };
 const Field = ({ label, children }) => (
@@ -95,29 +90,44 @@ const TextInput = ({ value, onChange, placeholder, type="text" }) => (
     style={{width:"100%",background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"10px 14px",borderRadius:2,fontFamily:"inherit",fontSize:14,outline:"none",boxSizing:"border-box"}}
     onFocus={e=>e.target.style.borderColor=C.yellow} onBlur={e=>e.target.style.borderColor=C.g06}/>
 );
-const Select = ({ value, onChange, children }) => (
-  <select value={value} onChange={onChange} style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"7px 12px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",cursor:"pointer"}}>
+const Select = ({ value, onChange, children, small=false }) => (
+  <select value={value} onChange={onChange} style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:small?"5px 8px":"7px 12px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",cursor:"pointer"}}>
     {children}
   </select>
 );
 const Card = ({ title, children, accent, extra }) => (
   <div style={{background:C.g09,border:`1px solid ${C.g08}`,borderRadius:2,borderTop:accent?`2px solid ${accent}`:undefined,padding:20,marginBottom:12}}>
-    {(title||extra) && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-      {title && <div style={{color:C.g03,fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>{title}</div>}
+    {(title||extra)&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+      {title&&<div style={{color:C.g03,fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>{title}</div>}
       {extra}
     </div>}
     {children}
   </div>
 );
-const THead = ({ cols }) => (
-  <thead><tr style={{borderBottom:`1px solid ${C.g08}`}}>{cols.map(c=><th key={c} style={{textAlign:"left",color:C.g04,fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"6px 16px 6px 0",whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>
-);
-const StatBox = ({ label, value, color=C.yellow }) => (
-  <div style={{background:C.g08,border:`1px solid ${C.g07}`,borderRadius:2,padding:"14px 18px",flex:1}}>
-    <div style={{color:color,fontSize:24,fontWeight:700,letterSpacing:"-0.03em"}}>{value}</div>
-    <div style={{color:C.g04,fontSize:11,fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase",marginTop:4}}>{label}</div>
-  </div>
-);
+
+// Sortable column header
+const SortTh = ({ label, colKey, sortKey, sortDir, onSort }) => {
+  const active = sortKey === colKey;
+  return (
+    <th onClick={()=>onSort(colKey)} style={{textAlign:"left",color:active?C.yellow:C.g04,fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"6px 16px 6px 0",whiteSpace:"nowrap",cursor:"pointer",userSelect:"none"}}>
+      {label} <span style={{opacity:active?1:0.3}}>{active?(sortDir==="asc"?"▲":"▼"):"▲"}</span>
+    </th>
+  );
+};
+
+const useSortFilter = (rows, searchKey) => {
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
+  const [search, setSearch] = useState("");
+  const onSort = (k) => { if (sortKey===k) setSortDir(d=>d==="asc"?"desc":"asc"); else { setSortKey(k); setSortDir("asc"); }};
+  const filtered = rows.filter(r => !search || (r[searchKey]||"").toLowerCase().includes(search.toLowerCase()));
+  const sorted = sortKey ? [...filtered].sort((a,b)=>{
+    const av=a[sortKey]??"", bv=b[sortKey]??"";
+    const n = typeof av==="number";
+    return (n ? av-bv : String(av).localeCompare(String(bv))) * (sortDir==="asc"?1:-1);
+  }) : filtered;
+  return { sorted, sortKey, sortDir, onSort, search, setSearch };
+};
 
 // ── Calendar Picker ───────────────────────────────────────────────────────────
 const CalendarPicker = ({ selected, onChange }) => {
@@ -125,14 +135,14 @@ const CalendarPicker = ({ selected, onChange }) => {
   const [view, setView] = useState({ y: now.getFullYear(), m: now.getMonth() });
   const firstDay = new Date(view.y, view.m, 1).getDay();
   const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
-  const prevMonth = () => setView(v => v.m === 0 ? {y:v.y-1,m:11} : {y:v.y,m:v.m-1});
-  const nextMonth = () => setView(v => v.m === 11 ? {y:v.y+1,m:0} : {y:v.y,m:v.m+1});
+  const prevMonth = () => setView(v => v.m===0?{y:v.y-1,m:11}:{y:v.y,m:v.m-1});
+  const nextMonth = () => setView(v => v.m===11?{y:v.y+1,m:0}:{y:v.y,m:v.m+1});
   const dateKey = (d) => `${view.y}-${String(view.m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
   const isWeekend = (d) => [0,6].includes(new Date(view.y, view.m, d).getDay());
   const isPast = (d) => new Date(view.y, view.m, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const toggleDay = (d) => {
-    if (isWeekend(d) || isPast(d)) return;
-    const k = dateKey(d), exists = selected.find(s=>s.date===k);
+    if (isWeekend(d)||isPast(d)) return;
+    const k=dateKey(d), exists=selected.find(s=>s.date===k);
     if (exists) onChange(selected.filter(s=>s.date!==k));
     else onChange([...selected,{date:k,half:null}]);
   };
@@ -157,7 +167,7 @@ const CalendarPicker = ({ selected, onChange }) => {
           return <div key={d} onClick={()=>toggleDay(d)} style={{textAlign:"center",padding:"8px 2px",borderRadius:2,cursor:disabled?"not-allowed":"pointer",background:sel?C.yellow:"transparent",color:disabled?C.g07:sel?C.black:C.white,fontWeight:sel?700:400,fontSize:13,border:`1px solid ${sel?C.yellow:"transparent"}`,transition:"all .1s"}}>{d}</div>;
         })}
       </div>
-      {monthSelected.length>0 && (
+      {monthSelected.length>0&&(
         <div style={{marginTop:16}}>
           <div style={{color:C.g03,fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Half Day Options</div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -173,7 +183,7 @@ const CalendarPicker = ({ selected, onChange }) => {
           </div>
         </div>
       )}
-      {selected.length>0 && <div style={{marginTop:10,color:C.g04,fontSize:12}}>{selected.length} day(s) selected · {selected.reduce((a,s)=>a+(s.half?0.5:1),0)} total days</div>}
+      {selected.length>0&&<div style={{marginTop:10,color:C.g04,fontSize:12}}>{selected.length} day(s) selected · {selected.reduce((a,s)=>a+(s.half?0.5:1),0)} total days</div>}
     </div>
   );
 };
@@ -232,22 +242,43 @@ const NewRequestModal = ({ onSubmit, onClose }) => {
   );
 };
 
+// ── Format datetime ───────────────────────────────────────────────────────────
+const fmtDateTime = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})} ${d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}`;
+};
+
 // ── My Requests ───────────────────────────────────────────────────────────────
 const MyRequests = ({ user, records, onNew, onCancel }) => {
   const mine = records.filter(r=>r.employeeId===user["Employee #"]);
+  const rows = mine.map(r=>({...r, _date: r.date, _days: r.half?0.5:1}));
+  const { sorted, sortKey, sortDir, onSort, search, setSearch } = useSortFilter(rows, "reason");
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
         <div style={{color:C.white,fontWeight:700,fontSize:20,letterSpacing:"-0.03em"}}>My WFH Requests</div>
-        <Btn onClick={onNew}>+ New Request</Btn>
+        <div style={{display:"flex",gap:10}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search reason..." style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"7px 12px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",width:180}}/>
+          <Btn onClick={onNew}>+ New Request</Btn>
+        </div>
       </div>
-      {mine.length===0
+      {sorted.length===0
         ? <div style={{color:C.g05,fontSize:14,padding:"40px 0",textAlign:"center"}}>No requests yet.</div>
         : <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <THead cols={["Date","Days","Reason","Status","Action"]}/>
-            <tbody>{mine.map(r=>(
+            <thead><tr style={{borderBottom:`1px solid ${C.g08}`}}>
+              <SortTh label="Date" colKey="_date" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+              <SortTh label="Days" colKey="_days" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+              <SortTh label="Reason" colKey="reason" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+              <SortTh label="Status" colKey="status" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+              <th style={{textAlign:"left",color:C.g04,fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"6px 0"}}>Action</th>
+            </tr></thead>
+            <tbody>{sorted.map(r=>(
               <tr key={r.id} style={{borderBottom:`1px solid ${C.g09}`}}>
-                <td style={{color:C.white,fontSize:13,padding:"12px 16px 12px 0"}}>{r.date}{r.half?` (½${r.half})`:""}</td>
+                <td style={{padding:"12px 16px 12px 0"}}>
+                  <div style={{color:C.white,fontSize:13}}>{r.date}{r.half?` (0.5 ${r.half})`:""}</div>
+                  <div style={{color:C.g05,fontSize:11,marginTop:2}}>{fmtDateTime(r.submittedAt)}</div>
+                </td>
                 <td style={{color:C.yellow,fontSize:13,fontWeight:700,padding:"12px 16px 12px 0"}}>{r.half?0.5:1}</td>
                 <td style={{color:C.g03,fontSize:13,padding:"12px 16px 12px 0"}}>{r.reason}</td>
                 <td style={{padding:"12px 16px 12px 0"}}><Tag status={r.status}/></td>
@@ -262,63 +293,64 @@ const MyRequests = ({ user, records, onNew, onCancel }) => {
 
 // ── Approvals ─────────────────────────────────────────────────────────────────
 const Approvals = ({ user, employees, records, onApprove, onReject }) => {
-  const [filter, setFilter] = useState("pending");
+  const [filter,setFilter]=useState("pending");
   const myTeamIds = employees.filter(e=>extractReportingId(e["Reporting to"])===user["Employee #"]).map(e=>e["Employee #"]);
   const allTeamRecs = records.filter(r=>myTeamIds.includes(r.employeeId));
-  const pending   = allTeamRecs.filter(r=>r.status==="pending");
-  const approved  = allTeamRecs.filter(r=>r.status==="approved");
-  const rejected  = allTeamRecs.filter(r=>r.status==="rejected");
-  const cancelled = allTeamRecs.filter(r=>r.status==="cancelled");
-  const filtered  = filter==="pending"?pending:filter==="approved"?approved:filter==="rejected"?rejected:cancelled;
+  const byStatus = (s) => allTeamRecs.filter(r=>r.status===s);
+  const filtered = byStatus(filter);
   const getEmp = id => employees.find(e=>e["Employee #"]===id);
 
+  const rows = filtered.map(r=>{ const emp=getEmp(r.employeeId); return {...r, _name:toFullName(emp?.["Last name, First name"]), _title:emp?.["Job Title"]??"", _days:r.half?0.5:1}; });
+  const { sorted, sortKey, sortDir, onSort, search, setSearch } = useSortFilter(rows, "_name");
+
   const FILTERS = [
-    {k:"pending",  l:"Pending",   count:pending.length,   color:C.yellow},
-    {k:"approved", l:"Approved",  count:approved.length,  color:"#4ade80"},
-    {k:"rejected", l:"Rejected",  count:rejected.length,  color:C.red},
-    {k:"cancelled",l:"Cancelled", count:cancelled.length, color:C.g04},
+    {k:"pending", l:"Pending",  color:C.yellow},
+    {k:"approved",l:"Approved", color:"#4ade80"},
+    {k:"rejected",l:"Rejected", color:C.red},
+    {k:"cancelled",l:"Cancelled",color:C.g04},
   ];
 
   return (
     <div>
       <div style={{color:C.white,fontWeight:700,fontSize:20,letterSpacing:"-0.03em",marginBottom:20}}>Team Approvals</div>
-
-      {/* Stat boxes */}
       <div style={{display:"flex",gap:10,marginBottom:20}}>
         {FILTERS.map(f=>(
           <div key={f.k} onClick={()=>setFilter(f.k)} style={{flex:1,background:filter===f.k?C.g08:C.g09,border:`1px solid ${filter===f.k?C.g06:C.g08}`,borderTop:`2px solid ${filter===f.k?f.color:C.g08}`,borderRadius:2,padding:"14px 16px",cursor:"pointer",transition:"all .15s"}}>
-            <div style={{color:f.color,fontSize:22,fontWeight:700}}>{f.count}</div>
+            <div style={{color:f.color,fontSize:22,fontWeight:700}}>{byStatus(f.k).length}</div>
             <div style={{color:C.g04,fontSize:11,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",marginTop:2}}>{f.l}</div>
           </div>
         ))}
       </div>
-
-      {/* Table */}
-      {filtered.length===0
+      <div style={{marginBottom:12}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name..." style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"7px 12px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",width:220}}/>
+      </div>
+      {sorted.length===0
         ? <div style={{color:C.g05,fontSize:14,padding:"40px 0",textAlign:"center"}}>No {filter} requests.</div>
         : <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <THead cols={["Employee","Date","Days","Reason","Status","Action"]}/>
-            <tbody>{filtered.map(r=>{
-              const emp=getEmp(r.employeeId);
-              return (
-                <tr key={r.id} style={{borderBottom:`1px solid ${C.g09}`}}>
-                  <td style={{padding:"12px 16px 12px 0"}}>
-                    <div style={{color:C.white,fontSize:13,fontWeight:600}}>{toFullName(emp?.["Last name, First name"])}</div>
-                    <div style={{color:C.g05,fontSize:11,marginTop:2}}>{emp?.["Job Title"]}</div>
-                  </td>
-                  <td style={{color:C.g03,fontSize:13,padding:"12px 16px 12px 0",whiteSpace:"nowrap"}}>{r.date}{r.half?` (½${r.half})`:""}</td>
-                  <td style={{color:C.yellow,fontSize:13,fontWeight:700,padding:"12px 16px 12px 0"}}>{r.half?0.5:1}</td>
-                  <td style={{color:C.g03,fontSize:13,padding:"12px 16px 12px 0"}}>{r.reason}</td>
-                  <td style={{padding:"12px 16px 12px 0"}}><Tag status={r.status}/></td>
-                  <td style={{padding:"12px 0"}}>
-                    {r.status==="pending"&&<div style={{display:"flex",gap:6}}>
-                      <Btn variant="success" small onClick={()=>onApprove(r.id)}>Approve</Btn>
-                      <Btn variant="danger" small onClick={()=>onReject(r.id)}>Reject</Btn>
-                    </div>}
-                  </td>
-                </tr>
-              );
-            })}</tbody>
+            <thead><tr style={{borderBottom:`1px solid ${C.g08}`}}>
+              <SortTh label="Employee" colKey="_name" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+              <SortTh label="Date" colKey="date" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+              <SortTh label="Days" colKey="_days" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+              <SortTh label="Reason" colKey="reason" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+              <SortTh label="Status" colKey="status" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+              <th style={{textAlign:"left",color:C.g04,fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"6px 0"}}>Action</th>
+            </tr></thead>
+            <tbody>{sorted.map(r=>(
+              <tr key={r.id} style={{borderBottom:`1px solid ${C.g09}`}}>
+                <td style={{padding:"12px 16px 12px 0"}}>
+                  <div style={{color:C.white,fontSize:13,fontWeight:600}}>{r._name}</div>
+                  <div style={{color:C.g05,fontSize:11,marginTop:2}}>{r._title}</div>
+                </td>
+                <td style={{padding:"12px 16px 12px 0"}}>
+                  <div style={{color:C.g03,fontSize:13,whiteSpace:"nowrap"}}>{r.date}{r.half?` (0.5 ${r.half})`:""}</div>
+                  <div style={{color:C.g06,fontSize:11,marginTop:2}}>{fmtDateTime(r.submittedAt)}</div>
+                </td>
+                <td style={{color:C.yellow,fontSize:13,fontWeight:700,padding:"12px 16px 12px 0"}}>{r._days}</td>
+                <td style={{color:C.g03,fontSize:13,padding:"12px 16px 12px 0"}}>{r.reason}</td>
+                <td style={{padding:"12px 16px 12px 0"}}><Tag status={r.status}/></td>
+                <td style={{padding:"12px 0"}}>{r.status==="pending"&&<div style={{display:"flex",gap:6}}><Btn variant="success" small onClick={()=>onApprove(r.id)}>Approve</Btn><Btn variant="danger" small onClick={()=>onReject(r.id)}>Reject</Btn></div>}</td>
+              </tr>
+            ))}</tbody>
           </table>
       }
     </div>
@@ -344,71 +376,83 @@ const Bar = ({ data, accent=C.yellow }) => {
 // ── Team Dashboard ────────────────────────────────────────────────────────────
 const TeamDash = ({ user, employees, records }) => {
   const now = new Date();
+  const myTeamIds = [user["Employee #"], ...employees.filter(e=>extractReportingId(e["Reporting to"])===user["Employee #"]).map(e=>e["Employee #"])];
 
-  // Include manager + their team
-  const myTeamIds = [
-    user["Employee #"],
-    ...employees.filter(e=>extractReportingId(e["Reporting to"])===user["Employee #"]).map(e=>e["Employee #"])
-  ];
+  const [periodType,setPeriodType]=useState("month");
+  const [selMonth,setSelMonth]=useState("all");
+  const [selYear,setSelYear]=useState(now.getFullYear());
+  const [rangeFrom,setRangeFrom]=useState("");
+  const [rangeTo,setRangeTo]=useState("");
+  const [memberFilter,setMemberFilter]=useState("all");
+  const [statusFilter,setStatusFilter]=useState("approved");
 
-  // Period filter state
-  const [periodType, setPeriodType] = useState("month"); // "month" | "range"
-  const [selMonth, setSelMonth] = useState(now.getMonth());
-  const [selYear, setSelYear] = useState(now.getFullYear());
-  const [rangeFrom, setRangeFrom] = useState("");
-  const [rangeTo, setRangeTo] = useState("");
-  const [memberFilter, setMemberFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("approved");
-
-  // Build year options
   const years = [now.getFullYear()-1, now.getFullYear()];
 
+  // Unified period check
   const inPeriod = (date) => {
     if (periodType==="month") {
       if (selMonth==="all") return date.startsWith(`${selYear}`);
-      const pfx=`${selYear}-${String(selMonth+1).padStart(2,"0")}`;
-      return date.startsWith(pfx);
-    } else {
-      if (!rangeFrom||!rangeTo) return true;
-      return date>=rangeFrom && date<=rangeTo;
+      return date.startsWith(`${selYear}-${String(selMonth+1).padStart(2,"0")}`);
     }
+    if (!rangeFrom||!rangeTo) return true;
+    return date>=rangeFrom && date<=rangeTo;
   };
 
-  const teamRecs = records.filter(r=>
+  // Filtered records — uses SAME inPeriod for both chart and table
+  const filteredRecs = records.filter(r=>
     myTeamIds.includes(r.employeeId) &&
     r.status===statusFilter &&
     inPeriod(r.date) &&
     (memberFilter==="all"||r.employeeId===memberFilter)
   );
 
-  // Monthly trend (last 4 months)
-  const monthData = Array.from({length:4},(_,i)=>{
-    const d=new Date(now.getFullYear(),now.getMonth()-(3-i),1);
-    const pfx=d.toISOString().slice(0,7);
-    return {l:MONTHS[d.getMonth()].slice(0,3),v:records.filter(r=>myTeamIds.includes(r.employeeId)&&r.status==="approved"&&r.date.startsWith(pfx)).length};
+  // Monthly trend — respects year & member & status filters, shows months within selected year
+  const trendMonths = selMonth==="all"
+    ? Array.from({length:12},(_,i)=>i)
+    : [Math.max(0,selMonth-2),Math.max(0,selMonth-1),selMonth,Math.min(11,selMonth+1)];
+
+  const monthData = trendMonths.map(mi=>{
+    const pfx=`${selYear}-${String(mi+1).padStart(2,"0")}`;
+    return {
+      l: MONTHS[mi].slice(0,3),
+      v: records.filter(r=>
+        myTeamIds.includes(r.employeeId) &&
+        r.status===statusFilter &&
+        r.date.startsWith(pfx) &&
+        (memberFilter==="all"||r.employeeId===memberFilter)
+      ).length
+    };
   });
 
-  // Member bar data
+  // Member bar — filtered
   const memberData = myTeamIds.map(id=>{
     const emp=employees.find(e=>e["Employee #"]===id);
-    return {l:toFullName(emp?.["Last name, First name"])??id, v:teamRecs.filter(r=>r.employeeId===id).length};
+    return {l:toFullName(emp?.["Last name, First name"])??id, v:filteredRecs.filter(r=>r.employeeId===id).length};
   });
 
   // Table rows
-  const tableRows = employees.filter(e=>myTeamIds.includes(e["Employee #"])&&(memberFilter==="all"||e["Employee #"]===memberFilter));
+  const tableRows = employees
+    .filter(e=>myTeamIds.includes(e["Employee #"])&&(memberFilter==="all"||e["Employee #"]===memberFilter))
+    .map(emp=>({
+      ...emp,
+      _fullName: toFullName(emp["Last name, First name"]),
+      _filtered: filteredRecs.filter(r=>r.employeeId===emp["Employee #"]).length,
+      _total: records.filter(r=>r.employeeId===emp["Employee #"]&&r.status==="approved").length,
+    }));
+
+  const { sorted, sortKey, sortDir, onSort, search, setSearch } = useSortFilter(tableRows, "_fullName");
 
   return (
     <div>
       <div style={{color:C.white,fontWeight:700,fontSize:20,letterSpacing:"-0.03em",marginBottom:20}}>Team Dashboard</div>
 
-      {/* Filters row */}
-      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+      {/* Filters */}
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
         <div style={{display:"flex",gap:4}}>
           <Btn small variant="ghost" active={periodType==="month"} onClick={()=>setPeriodType("month")}>By Month</Btn>
           <Btn small variant="ghost" active={periodType==="range"} onClick={()=>setPeriodType("range")}>Date Range</Btn>
         </div>
-
-        {periodType==="month" ? (
+        {periodType==="month"?(
           <div style={{display:"flex",gap:6}}>
             <Select value={selMonth} onChange={e=>setSelMonth(e.target.value==="all"?"all":Number(e.target.value))}>
               <option value="all">All Months</option>
@@ -418,55 +462,57 @@ const TeamDash = ({ user, employees, records }) => {
               {years.map(y=><option key={y} value={y}>{y}</option>)}
             </Select>
           </div>
-        ) : (
+        ):(
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
             <input type="date" value={rangeFrom} onChange={e=>setRangeFrom(e.target.value)} style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"6px 10px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none"}}/>
             <span style={{color:C.g05,fontSize:12}}>to</span>
             <input type="date" value={rangeTo} onChange={e=>setRangeTo(e.target.value)} style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"6px 10px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none"}}/>
           </div>
         )}
-
         <Select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
           <option value="approved">Approved</option>
           <option value="pending">Pending</option>
           <option value="rejected">Rejected</option>
         </Select>
-
         <Select value={memberFilter} onChange={e=>setMemberFilter(e.target.value)}>
           <option value="all">All Members</option>
-          {myTeamIds.map(id=>{
-            const emp=employees.find(e=>e["Employee #"]===id);
-            return <option key={id} value={id}>{toFullName(emp?.["Last name, First name"])}</option>;
-          })}
+          {myTeamIds.map(id=>{ const emp=employees.find(e=>e["Employee #"]===id); return <option key={id} value={id}>{toFullName(emp?.["Last name, First name"])}</option>; })}
         </Select>
       </div>
 
       {/* Charts */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-        <Card title="Monthly Trend (Approved)" accent={C.yellow}><Bar data={monthData}/></Card>
+        <Card title={`Monthly Trend (${statusFilter})`} accent={C.yellow}><Bar data={monthData}/></Card>
         <Card title="WFH Days by Member" accent={C.g06}><Bar data={memberData} accent={C.g04}/></Card>
       </div>
 
       {/* Team table */}
       <Card title="Team Members" extra={
-        <div style={{color:C.g05,fontSize:11}}>{tableRows.length} member{tableRows.length!==1?"s":""}</div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name..." style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"5px 10px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",width:160}}/>
+          <div style={{color:C.g05,fontSize:11}}>{sorted.length} member{sorted.length!==1?"s":""}</div>
+        </div>
       }>
         <table style={{width:"100%",borderCollapse:"collapse"}}>
-          <THead cols={["Name","Job Title","Team","WFH Days (filtered)","Total Approved"]}/>
-          <tbody>{tableRows.map(emp=>{
-            const filteredDays = teamRecs.filter(r=>r.employeeId===emp["Employee #"]).length;
-            const totalApproved = records.filter(r=>r.employeeId===emp["Employee #"]&&r.status==="approved").length;
-            const isManager = emp["Employee #"]===user["Employee #"];
+          <thead><tr style={{borderBottom:`1px solid ${C.g08}`}}>
+            <SortTh label="Name" colKey="_fullName" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+            <SortTh label="Job Title" colKey="Job Title" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+            <SortTh label="Team" colKey="Teams" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+            <SortTh label="WFH Days (filtered)" colKey="_filtered" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+            <SortTh label="Total Approved" colKey="_total" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+          </tr></thead>
+          <tbody>{sorted.map(emp=>{
+            const isMe = emp["Employee #"]===user["Employee #"];
             return (
               <tr key={emp["Employee #"]} style={{borderBottom:`1px solid ${C.g09}`}}>
                 <td style={{padding:"10px 16px 10px 0"}}>
-                  <div style={{color:C.white,fontSize:13}}>{toFullName(emp["Last name, First name"])}</div>
-                  {isManager&&<div style={{color:C.yellow,fontSize:10,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",marginTop:1}}>You</div>}
+                  <div style={{color:C.white,fontSize:13}}>{emp._fullName}</div>
+                  {isMe&&<div style={{color:C.yellow,fontSize:10,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",marginTop:1}}>You</div>}
                 </td>
                 <td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{emp["Job Title"]}</td>
                 <td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{emp.Teams}</td>
-                <td style={{color:C.yellow,fontSize:13,fontWeight:700,padding:"10px 16px 10px 0"}}>{filteredDays}</td>
-                <td style={{color:C.g03,fontSize:13,padding:"10px 0"}}>{totalApproved}</td>
+                <td style={{color:C.yellow,fontSize:13,fontWeight:700,padding:"10px 16px 10px 0"}}>{emp._filtered}</td>
+                <td style={{color:C.g03,fontSize:13,padding:"10px 0"}}>{emp._total}</td>
               </tr>
             );
           })}</tbody>
@@ -482,6 +528,10 @@ const OrgDash = ({ employees, records }) => {
   const teams=[...new Set(employees.map(e=>e.Teams))];
   const teamData=teams.map(t=>({l:t,v:approved.filter(r=>r.team===t).length}));
   const monthData=Array.from({length:4},(_,i)=>{ const d=new Date(now.getFullYear(),now.getMonth()-(3-i),1); return {l:MONTHS[d.getMonth()].slice(0,3),v:approved.filter(r=>r.date.startsWith(d.toISOString().slice(0,7))).length}; });
+
+  const rows = employees.map(emp=>({...emp, _fullName:toFullName(emp["Last name, First name"]), _wfh:approved.filter(r=>r.employeeId===emp["Employee #"]).length}));
+  const { sorted, sortKey, sortDir, onSort, search, setSearch } = useSortFilter(rows, "_fullName");
+
   return (
     <div>
       <div style={{color:C.white,fontWeight:700,fontSize:20,letterSpacing:"-0.03em",marginBottom:20}}>Organizational Dashboard</div>
@@ -489,10 +539,17 @@ const OrgDash = ({ employees, records }) => {
         <Card title="Total WFH Days by Month" accent={C.yellow}><Bar data={monthData}/></Card>
         <Card title="WFH Days by Team" accent={C.g06}><Bar data={teamData} accent={C.red}/></Card>
       </div>
-      <Card title="All Employees">
+      <Card title="All Employees" extra={
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name..." style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"5px 10px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",width:180}}/>
+      }>
         <table style={{width:"100%",borderCollapse:"collapse"}}>
-          <THead cols={["Name","Team","Title","WFH Days"]}/>
-          <tbody>{employees.map(emp=><tr key={emp["Employee #"]} style={{borderBottom:`1px solid ${C.g09}`}}><td style={{color:C.white,fontSize:13,padding:"10px 16px 10px 0"}}>{toFullName(emp["Last name, First name"])}</td><td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{emp.Teams}</td><td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{emp["Job Title"]}</td><td style={{color:C.yellow,fontSize:13,fontWeight:700,padding:"10px 0"}}>{approved.filter(r=>r.employeeId===emp["Employee #"]).length}</td></tr>)}</tbody>
+          <thead><tr style={{borderBottom:`1px solid ${C.g08}`}}>
+            <SortTh label="Name" colKey="_fullName" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+            <SortTh label="Team" colKey="Teams" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+            <SortTh label="Title" colKey="Job Title" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+            <SortTh label="WFH Days" colKey="_wfh" sortKey={sortKey} sortDir={sortDir} onSort={onSort}/>
+          </tr></thead>
+          <tbody>{sorted.map(emp=><tr key={emp["Employee #"]} style={{borderBottom:`1px solid ${C.g09}`}}><td style={{color:C.white,fontSize:13,padding:"10px 16px 10px 0"}}>{emp._fullName}</td><td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{emp.Teams}</td><td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{emp["Job Title"]}</td><td style={{color:C.yellow,fontSize:13,fontWeight:700,padding:"10px 0"}}>{emp._wfh}</td></tr>)}</tbody>
         </table>
       </Card>
     </div>
@@ -505,57 +562,80 @@ const AdminPanel = ({ employees, setEmployees, records, setRecords, invites, set
   const [inviteEmail,setInviteEmail]=useState(""); const [inviteMsg,setInviteMsg]=useState("");
   const [editingId,setEditingId]=useState(null); const [editReporting,setEditReporting]=useState("");
   const fileRef=useCallback(n=>{if(n)n.value="";},[]);
-  const handleFile=e=>{
-    const f=e.target.files[0]; if(!f) return;
-    const r=new FileReader(); r.onload=ev=>{try{const p=parseCSV(ev.target.result); if(p.length){const w=p.map(x=>({...x,Password:x.Password||"1234"})); setEmployees(w); setRecords(genRecords(w)); alert(`✅ Imported ${p.length} employees.`);}}catch{alert("❌ Failed to parse CSV.");}}; r.readAsText(f);
-  };
-  const sendInvite=()=>{
-    if(!inviteEmail.includes("@")){setInviteMsg("Please enter a valid email.");return;}
-    setInvites(p=>[...p,{email:inviteEmail,sentAt:new Date().toISOString().slice(0,10)}]);
-    setInviteMsg(`✅ Invite sent to ${inviteEmail} (simulated)`); setInviteEmail("");
-  };
+  const handleFile=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{try{const p=parseCSV(ev.target.result); if(p.length){const w=p.map(x=>({...x,Password:x.Password||"1234"})); setEmployees(w); setRecords(genRecords(w)); alert(`✅ Imported ${p.length} employees.`);}}catch{alert("❌ Failed to parse CSV.");}}; r.readAsText(f); };
+  const sendInvite=()=>{ if(!inviteEmail.includes("@")){setInviteMsg("Please enter a valid email.");return;} setInvites(p=>[...p,{email:inviteEmail,sentAt:new Date().toISOString().slice(0,10)}]); setInviteMsg(`✅ Invite sent to ${inviteEmail} (simulated)`); setInviteEmail(""); };
   const SUBTABS=[{k:"employees",l:"Employees"},{k:"approval",l:"Approval Lines"},{k:"invite",l:"Invite"}];
+
+  const empRows = employees.map(e=>({...e,_fullName:toFullName(e["Last name, First name"])}));
+  const empSort = useSortFilter(empRows,"_fullName");
+  const appSort = useSortFilter(empRows,"_fullName");
+
   return (
     <div>
       <div style={{color:C.white,fontWeight:700,fontSize:20,letterSpacing:"-0.03em",marginBottom:16}}>Admin Panel</div>
       <div style={{display:"flex",gap:0,marginBottom:20,borderBottom:`1px solid ${C.g08}`}}>
         {SUBTABS.map(t=><button key={t.k} onClick={()=>setSubTab(t.k)} style={{background:"none",border:"none",borderBottom:subTab===t.k?`2px solid ${C.yellow}`:"2px solid transparent",color:subTab===t.k?C.white:C.g04,fontFamily:"inherit",fontSize:13,fontWeight:subTab===t.k?600:400,padding:"10px 16px",cursor:"pointer"}}>{t.l}</button>)}
       </div>
+
       {subTab==="employees"&&<div>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16,gap:16}}>
-          <div style={{color:C.g04,fontSize:12}}>Required CSV columns: Last name, First name · Employee # · Work Email · Teams · Job Title · Reporting to</div>
+          <div style={{color:C.g04,fontSize:12}}>Required columns: Last name, First name · Employee # · Work Email · Teams · Job Title · Reporting to</div>
           <label style={{background:C.white,color:C.black,fontSize:13,fontWeight:600,padding:"8px 20px",borderRadius:2,cursor:"pointer",whiteSpace:"nowrap"}}>Import CSV<input ref={fileRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleFile}/></label>
         </div>
-        <Card><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><THead cols={["#","Name","Email","Team","Title","Reports To"]}/><tbody>{employees.map(emp=><tr key={emp["Employee #"]} style={{borderBottom:`1px solid ${C.g09}`}}><td style={{color:C.g04,fontSize:12,padding:"10px 16px 10px 0"}}>{emp["Employee #"]}</td><td style={{color:C.white,fontSize:12,padding:"10px 16px 10px 0"}}>{toFullName(emp["Last name, First name"])}</td><td style={{color:C.g04,fontSize:12,padding:"10px 16px 10px 0"}}>{emp["Work Email"]}</td><td style={{color:C.g04,fontSize:12,padding:"10px 16px 10px 0"}}>{emp.Teams}</td><td style={{color:C.g04,fontSize:12,padding:"10px 16px 10px 0"}}>{emp["Job Title"]}</td><td style={{color:C.g04,fontSize:12,padding:"10px 0"}}>{emp["Reporting to"]}</td></tr>)}</tbody></table></div></Card>
+        <Card extra={<input value={empSort.search} onChange={e=>empSort.setSearch(e.target.value)} placeholder="Search..." style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"5px 10px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",width:160}}/>}>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead><tr style={{borderBottom:`1px solid ${C.g08}`}}>
+                <SortTh label="#" colKey="Employee #" sortKey={empSort.sortKey} sortDir={empSort.sortDir} onSort={empSort.onSort}/>
+                <SortTh label="Name" colKey="_fullName" sortKey={empSort.sortKey} sortDir={empSort.sortDir} onSort={empSort.onSort}/>
+                <SortTh label="Email" colKey="Work Email" sortKey={empSort.sortKey} sortDir={empSort.sortDir} onSort={empSort.onSort}/>
+                <SortTh label="Team" colKey="Teams" sortKey={empSort.sortKey} sortDir={empSort.sortDir} onSort={empSort.onSort}/>
+                <SortTh label="Title" colKey="Job Title" sortKey={empSort.sortKey} sortDir={empSort.sortDir} onSort={empSort.onSort}/>
+                <SortTh label="Reports To" colKey="Reporting to" sortKey={empSort.sortKey} sortDir={empSort.sortDir} onSort={empSort.onSort}/>
+              </tr></thead>
+              <tbody>{empSort.sorted.map(emp=><tr key={emp["Employee #"]} style={{borderBottom:`1px solid ${C.g09}`}}><td style={{color:C.g04,fontSize:12,padding:"10px 16px 10px 0"}}>{emp["Employee #"]}</td><td style={{color:C.white,fontSize:12,padding:"10px 16px 10px 0"}}>{emp._fullName}</td><td style={{color:C.g04,fontSize:12,padding:"10px 16px 10px 0"}}>{emp["Work Email"]}</td><td style={{color:C.g04,fontSize:12,padding:"10px 16px 10px 0"}}>{emp.Teams}</td><td style={{color:C.g04,fontSize:12,padding:"10px 16px 10px 0"}}>{emp["Job Title"]}</td><td style={{color:C.g04,fontSize:12,padding:"10px 0"}}>{emp["Reporting to"]}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </Card>
       </div>}
-      {subTab==="approval"&&<Card title="Set Approval Lines">
+
+      {subTab==="approval"&&<Card title="Set Approval Lines" extra={<input value={appSort.search} onChange={e=>appSort.setSearch(e.target.value)} placeholder="Search..." style={{background:C.g08,border:`1px solid ${C.g06}`,color:C.white,padding:"5px 10px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",width:160}}/>}>
         <div style={{color:C.g04,fontSize:12,marginBottom:16}}>Format: Name (Employee#) — e.g. "Paul (166)"</div>
-        <table style={{width:"100%",borderCollapse:"collapse"}}><THead cols={["Name","Job Title","Reports To","Action"]}/><tbody>{employees.map(emp=>(
-          <tr key={emp["Employee #"]} style={{borderBottom:`1px solid ${C.g09}`}}>
-            <td style={{color:C.white,fontSize:13,padding:"10px 16px 10px 0"}}>{toFullName(emp["Last name, First name"])}</td>
-            <td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{emp["Job Title"]}</td>
-            <td style={{padding:"10px 16px 10px 0"}}>
-              {editingId===emp["Employee #"]
-                ?<input value={editReporting} onChange={e=>setEditReporting(e.target.value)} style={{background:C.g08,border:`1px solid ${C.yellow}`,color:C.white,padding:"4px 8px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",width:160}}/>
-                :<span style={{color:C.g03,fontSize:13}}>{emp["Reporting to"]||"—"}</span>}
-            </td>
-            <td style={{padding:"10px 0"}}>
-              {editingId===emp["Employee #"]
-                ?<div style={{display:"flex",gap:6}}><Btn small onClick={()=>{setEmployees(p=>p.map(e=>e["Employee #"]===emp["Employee #"]?{...e,"Reporting to":editReporting}:e));setEditingId(null);}}>Save</Btn><Btn small variant="ghost" onClick={()=>setEditingId(null)}>Cancel</Btn></div>
-                :<Btn small variant="ghost" onClick={()=>{setEditingId(emp["Employee #"]);setEditReporting(emp["Reporting to"]||"");}}>Edit</Btn>}
-            </td>
-          </tr>
-        ))}</tbody></table>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead><tr style={{borderBottom:`1px solid ${C.g08}`}}>
+            <SortTh label="Name" colKey="_fullName" sortKey={appSort.sortKey} sortDir={appSort.sortDir} onSort={appSort.onSort}/>
+            <SortTh label="Job Title" colKey="Job Title" sortKey={appSort.sortKey} sortDir={appSort.sortDir} onSort={appSort.onSort}/>
+            <th style={{textAlign:"left",color:C.g04,fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"6px 16px 6px 0"}}>Reports To</th>
+            <th style={{textAlign:"left",color:C.g04,fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"6px 0"}}>Action</th>
+          </tr></thead>
+          <tbody>{appSort.sorted.map(emp=>(
+            <tr key={emp["Employee #"]} style={{borderBottom:`1px solid ${C.g09}`}}>
+              <td style={{color:C.white,fontSize:13,padding:"10px 16px 10px 0"}}>{emp._fullName}</td>
+              <td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{emp["Job Title"]}</td>
+              <td style={{padding:"10px 16px 10px 0"}}>
+                {editingId===emp["Employee #"]
+                  ?<input value={editReporting} onChange={e=>setEditReporting(e.target.value)} style={{background:C.g08,border:`1px solid ${C.yellow}`,color:C.white,padding:"4px 8px",borderRadius:2,fontFamily:"inherit",fontSize:12,outline:"none",width:160}}/>
+                  :<span style={{color:C.g03,fontSize:13}}>{emp["Reporting to"]||"—"}</span>}
+              </td>
+              <td style={{padding:"10px 0"}}>
+                {editingId===emp["Employee #"]
+                  ?<div style={{display:"flex",gap:6}}><Btn small onClick={()=>{setEmployees(p=>p.map(e=>e["Employee #"]===emp["Employee #"]?{...e,"Reporting to":editReporting}:e));setEditingId(null);}}>Save</Btn><Btn small variant="ghost" onClick={()=>setEditingId(null)}>Cancel</Btn></div>
+                  :<Btn small variant="ghost" onClick={()=>{setEditingId(emp["Employee #"]);setEditReporting(emp["Reporting to"]||"");}}>Edit</Btn>}
+              </td>
+            </tr>
+          ))}</tbody>
+        </table>
       </Card>}
+
       {subTab==="invite"&&<div>
         <Card title="Invite Employee by Email" accent={C.yellow}>
-          <div style={{color:C.g04,fontSize:12,marginBottom:16}}>Send an invitation to a new employee to join the WFH tool.</div>
+          <div style={{color:C.g04,fontSize:12,marginBottom:16}}>Send an invitation to a new employee.</div>
           <Field label="Email Address"><TextInput value={inviteEmail} onChange={e=>{setInviteEmail(e.target.value);setInviteMsg("")}} placeholder="newemployee@seoulrobotics.org"/></Field>
           {inviteMsg&&<div style={{color:inviteMsg.startsWith("✅")?"#4ade80":C.red,fontSize:12,marginBottom:12}}>{inviteMsg}</div>}
           <Btn variant="yellow" onClick={sendInvite}>Send Invite →</Btn>
           <div style={{color:C.g05,fontSize:11,marginTop:10}}>⚠ Real email sending requires a backend integration.</div>
         </Card>
-        {invites.length>0&&<Card title="Sent Invites"><table style={{width:"100%",borderCollapse:"collapse"}}><THead cols={["Email","Sent Date","Status"]}/><tbody>{invites.map((inv,i)=><tr key={i} style={{borderBottom:`1px solid ${C.g09}`}}><td style={{color:C.white,fontSize:13,padding:"10px 16px 10px 0"}}>{inv.email}</td><td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{inv.sentAt}</td><td style={{padding:"10px 0"}}><Tag status="pending"/></td></tr>)}</tbody></table></Card>}
+        {invites.length>0&&<Card title="Sent Invites"><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{borderBottom:`1px solid ${C.g08}`}}><SortTh label="Email" colKey="email" sortKey={null} sortDir="asc" onSort={()=>{}}/><th style={{textAlign:"left",color:C.g04,fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"6px 16px 6px 0"}}>Sent Date</th><th style={{textAlign:"left",color:C.g04,fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"6px 0"}}>Status</th></tr></thead><tbody>{invites.map((inv,i)=><tr key={i} style={{borderBottom:`1px solid ${C.g09}`}}><td style={{color:C.white,fontSize:13,padding:"10px 16px 10px 0"}}>{inv.email}</td><td style={{color:C.g04,fontSize:13,padding:"10px 16px 10px 0"}}>{inv.sentAt}</td><td style={{padding:"10px 0"}}><Tag status="pending"/></td></tr>)}</tbody></table></Card>}
       </div>}
     </div>
   );
@@ -572,27 +652,20 @@ export default function App() {
   const login=emp=>{setUser(emp);setRole(deriveRole(emp,employees));setTab("my");};
   const logout=()=>{setUser(null);setRole(null);};
   const newReq=(dates,reason)=>{
-    const newRecs=dates.map(d=>({id:`${user["Employee #"]}-${Date.now()}-${d.date}`,employeeId:user["Employee #"],team:user.Teams,date:d.date,half:d.half,status:"pending",reason}));
+    const now=new Date().toISOString();
+    const newRecs=dates.map(d=>({id:`${user["Employee #"]}-${Date.now()}-${d.date}`,employeeId:user["Employee #"],team:user.Teams,date:d.date,half:d.half,submittedAt:now,status:"pending",reason}));
     setRecords(r=>[...r,...newRecs]); setModal(false);
   };
 
   if (!user) return <LoginScreen employees={employees} onLogin={login}/>;
-
   const isManager=role==="manager"||role==="admin";
-  const TABS=[
-    {key:"my",label:"My Requests"},
-    ...(isManager?[{key:"approvals",label:"Approvals"},{key:"team",label:"Team Dashboard"}]:[]),
-    ...(role==="admin"?[{key:"org",label:"Org Dashboard"},{key:"admin",label:"Admin"}]:[]),
-  ];
+  const TABS=[{key:"my",label:"My Requests"},...(isManager?[{key:"approvals",label:"Approvals"},{key:"team",label:"Team Dashboard"}]:[]),...(role==="admin"?[{key:"org",label:"Org Dashboard"},{key:"admin",label:"Admin"}]:[])];
 
   return (
     <div style={{minHeight:"100vh",background:C.black,fontFamily:"'Inter',sans-serif",color:C.white}}>
       <div style={{background:C.g09,borderBottom:`1px solid ${C.g08}`,padding:"0 28px",display:"flex",alignItems:"center",justifyContent:"space-between",height:56}}>
         <div style={{display:"flex",alignItems:"center",gap:16}}>
-          <div style={{lineHeight:1.1}}>
-            <div style={{fontWeight:700,fontSize:14,letterSpacing:"-0.03em"}}>Seoul Robotics</div>
-            <div style={{color:C.g04,fontSize:10,letterSpacing:"0.06em",textTransform:"uppercase"}}>WFH Approval</div>
-          </div>
+          <div style={{lineHeight:1.1}}><div style={{fontWeight:700,fontSize:14,letterSpacing:"-0.03em"}}>Seoul Robotics</div><div style={{color:C.g04,fontSize:10,letterSpacing:"0.06em",textTransform:"uppercase"}}>WFH Approval</div></div>
           <div style={{width:1,height:24,background:C.g07}}/>
           <div style={{color:C.g03,fontSize:12}}>{toFullName(user["Last name, First name"])}</div>
           <RoleTag role={role}/>
